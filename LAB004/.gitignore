@@ -50,3 +50,6 @@ package.nls.*.json
 l10n/
 .idea
 data
+
+# file including info about the best model
+best_test_acc_model.pth
