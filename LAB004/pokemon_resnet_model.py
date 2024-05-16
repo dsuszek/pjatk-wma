@@ -1,30 +1,31 @@
 """
-This script defines a convolutional neural network (CNN) model called PokemonCNN and trains it on a custom dataset
-using PyTorch library. User can give the following input parameters:
+This script defines a convolutional neural network (CNN)
+model called PokemonCNN and trains it on a custom dataset using PyTorch library.
+User can give the following input parameters:
     * dataset_path: path to the input dataset
     * batch size: defines the number of samples that will be propagated through the network
     * train_split: split between train and test datasets
-    * epochs: number of complete iterations through the entire training dataset in one cycle for training the ML model
+    * epochs: number of complete iterations through the entire training dataset in one cycle
 
 It also includes functions for setting up logging, parsing command-line arguments and loading data.
 The implementation is based on ResNet model.
 
 Example of usage:
-    python script_name.py --dataset_path path_to_dataset --batch_size 32 --train_split 0.7 --initial_learning_rate 0.001 --epochs 50
+    python pokemon_resnet_model.py --d path_to_dataset --b 32 --t 0.7 --i 0.001 --e 50
 """
 
 from __future__ import annotations
-import torch
-import torchvision
 import argparse
 import logging
 import os
+import ssl
+import torch
+import torchvision
 from torch import nn, optim
 from torch.nn import Linear, ReLU, Conv2d, MaxPool2d, Module, LogSoftmax
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
-import ssl
 
 logger = logging.getLogger()
 lprint = logger.info
@@ -32,7 +33,9 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 
 class PokemonCNN(Module):
-
+    """
+     CNN model based on ResNet architecture for image classification of Pokemons.
+     """
     def __init__(self, input_shape: torch.Size, classes: int):
         """
         Initializes the PokemonCNN instance.
@@ -71,29 +74,29 @@ class PokemonCNN(Module):
         Returns:
             torch.Size: The computed output size after convolutional layers.
         """
-        x = torch.randn(1, input_shape)
-        x = self.conv1(x)
-        x = self.relu1(x)
-        x = self.maxpool1(x)
-        x = self.conv2(x)
-        x = self.relu2(x)
-        x = self.maxpool2(x)
-        return x.view(x.size(0), -1)
+        output_shape = torch.randn(1, input_shape)
+        output_shape = self.conv1(output_shape)
+        output_shape = self.relu1(output_shape)
+        output_shape = self.maxpool1(output_shape)
+        output_shape = self.conv2(output_shape)
+        output_shape = self.relu2(output_shape)
+        output_shape = self.maxpool2(output_shape)
+        return output_shape.view(output_shape.size(0), -1)
 
-    def forward(self, x):
+    def forward(self, input_tensor):
         """
         Defines the forward pass of the model.
 
         Args:
-            x (torch.Tensor): The input tensor.
+            input_tensor (torch.Tensor): The input tensor.
 
         Returns:
             torch.Tensor: The output tensor from the forward pass.
         """
-        x = self.cnn_layers(x)
-        x = x.view(x.size(0), -1)
-        x = self.linear_layers(x)
-        return x
+        input_tensor = self.cnn_layers(input_tensor)
+        input_tensor = input_tensor.view(input_tensor.size(0), -1)
+        input_tensor = self.linear_layers(input_tensor)
+        return input_tensor
 
 
 def initialize_resnet():
@@ -248,8 +251,8 @@ def train_model(model, initial_learning_rate, epochs: int,
         history["val_acc"].append(test_accuracy)
         print('Epoch %d:\ntrain loss: %.4f' % (epoch, loss.item()))
         print('test loss: %.4f' % (loss_t.item()))
-        print('train_accuracy %.2f' % (train_accuracy))
-        print('test_accuracy %.2f' % (test_accuracy))
+        print('train_accuracy %.2f' % train_accuracy)
+        print('test_accuracy %.2f' % test_accuracy)
         if test_accuracy > test_accuracy_max:
             test_accuracy_max = test_accuracy
             print("New Max Test Accuracy Achieved %.2f. Saving model.\n\n" % test_accuracy_max)
@@ -268,10 +271,11 @@ def main(args):
         args (argparse.Namespace): Parsed command-line arguments.
     """
     setup_logger()
-    train_loader, validation_loader, classes = get_data_loaders(args.dataset_path, args.train_split, args.batch_size)
+    train_loader, validation_loader, classes = (
+        get_data_loaders(args.dataset_path, args.train_split, args.batch_size))
     model = initialize_resnet()
-    trained_model, history = train_model(model, args.initial_learning_rate, args.epochs, train_loader,
-                                         validation_loader)
+    trained_model, history = train_model(model, args.initial_learning_rate,
+                                         args.epochs, train_loader, validation_loader)
 
 
 if __name__ == '__main__':
