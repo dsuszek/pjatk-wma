@@ -1,5 +1,19 @@
-from __future__ import annotations
+"""
+This script defines a convolutional neural network (CNN) model called PokemonCNN and trains it on a custom dataset
+using PyTorch library. User can give the following input parameters:
+    * dataset_path: path to the input dataset
+    * batch size: defines the number of samples that will be propagated through the network
+    * train_split: split between train and test datasets
+    * epochs: number of complete iterations through the entire training dataset in one cycle for training the ML model
 
+It also includes functions for setting up logging, parsing command-line arguments and loading data.
+The implementation is based on ResNet model.
+
+Example of usage:
+    python script_name.py --dataset_path path_to_dataset --batch_size 32 --train_split 0.7 --initial_learning_rate 0.001 --epochs 50
+"""
+
+from __future__ import annotations
 import torch
 import torchvision
 import argparse
@@ -18,7 +32,15 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 
 class PokemonCNN(Module):
+
     def __init__(self, input_shape: torch.Size, classes: int):
+        """
+        Initializes the PokemonCNN instance.
+
+        Args:
+            input_shape (torch.Size): The input shape of the data.
+            classes (int): The number of classes for classification.
+        """
         # Call the parent constructor
         super(PokemonCNN, self).__init__()
         channel_count = input_shape[0]
@@ -39,8 +61,16 @@ class PokemonCNN(Module):
         self.fc2 = Linear(500, classes)
         self.logSoftmax = LogSoftmax(dim=1)
 
-    def _calculate_conv_out(self, input_shape):
-        # Compute the output size after convolutional layers
+    def _calculate_conv_out(self, input_shape : int):
+        """
+        Calculates the output size after convolutional layers.
+
+        Args:
+            input_shape: The input shape to be used for calculating output size.
+
+        Returns:
+            torch.Size: The computed output size after convolutional layers.
+        """
         x = torch.randn(1, input_shape)
         x = self.conv1(x)
         x = self.relu1(x)
@@ -50,25 +80,40 @@ class PokemonCNN(Module):
         x = self.maxpool2(x)
         return x.view(x.size(0), -1)
 
-    # Defining the forward pass
     def forward(self, x):
+        """
+        Defines the forward pass of the model.
+
+        Args:
+            x (torch.Tensor): The input tensor.
+
+        Returns:
+            torch.Tensor: The output tensor from the forward pass.
+        """
         x = self.cnn_layers(x)
         x = x.view(x.size(0), -1)
         x = self.linear_layers(x)
         return x
 
 
-def initialize_resnet(num_classes):
+def initialize_resnet():
+    """
+    Initializes a ResNet model, that is built in torchvision library.
+
+    Returns:
+        torchvision.models.ResNet: The initialized ResNet model.
+    """
     resnet_model = torchvision.models.resnet18()
-
-    # Replace the final fully connected layer with a new one suitable for our number of classes
-    num_ftrs = resnet_model.fc.in_features
-    # resnet_model.fc = nn.Linear(num_ftrs, num_classes)
-
     return resnet_model
 
 
 def setup_logger(dataset_path: str | None = None) -> None:
+    """
+    Configures the logger.
+
+    Args:
+        dataset_path (str, optional): The path to the dataset directory. Defaults to None.
+    """
     log_formatter = logging.Formatter('%(message)s')
 
     if dataset_path:
@@ -85,6 +130,12 @@ def setup_logger(dataset_path: str | None = None) -> None:
 
 
 def parse_arguments():
+    """
+    Parses command-line arguments.
+
+    Returns:
+        argparse.Namespace: The parsed arguments.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dataset_path', type=str, required=True)
     parser.add_argument('-b', '--batch_size', type=int, default=32)
@@ -95,6 +146,17 @@ def parse_arguments():
 
 
 def get_data_loaders(dataset_path: str, train_split: float, batch_size: int):
+    """
+     Creates data loaders for the training and validation datasets.
+
+     Args:
+         dataset_path (str): The path to the dataset directory.
+         train_split (float): Percentage of data used to train the model.
+         batch_size (int): The batch size for data loaders.
+
+     Returns:
+         tuple: A tuple containing train_loader, validation_loader, and classes.
+     """
     transform = transforms.Compose([transforms.ToTensor()])
     img_folder = ImageFolder(dataset_path, transform=transform)
     lprint(f'Image folder length {len(img_folder)}')
@@ -113,6 +175,19 @@ def get_data_loaders(dataset_path: str, train_split: float, batch_size: int):
 
 def train_model(model, initial_learning_rate, epochs: int,
                 train_loader: DataLoader, validation_loader: DataLoader):
+    """
+     Trains the specified model using the provided initial learning rate, epochs and data loaders.
+
+     Args:
+         model: The model to be trained.
+         initial_learning_rate (float): The initial learning rate for optimization.
+         epochs (int): The number of epochs for training.
+         train_loader (DataLoader): The data loader for training data.
+         validation_loader (DataLoader): The data loader for validation data.
+
+     Returns:
+         tuple: A tuple containing the trained model and the training history.
+     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
@@ -137,11 +212,10 @@ def train_model(model, initial_learning_rate, epochs: int,
         for images, labels in train_loader:
             (images, labels) = (images.to(device), labels.to(device))
 
-            # Training pass
             optimizer.zero_grad()
 
             output = model.forward(images)
-            _, predicted = torch.max(output.data, 1)  # the dimension 1 corresponds to max along the rows
+            _, predicted = torch.max(output.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
             output.squeeze_(-1)
@@ -178,15 +252,21 @@ def train_model(model, initial_learning_rate, epochs: int,
         print('test_accuracy %.2f' % (test_accuracy))
         if test_accuracy > test_accuracy_max:
             test_accuracy_max = test_accuracy
-            print("New Max Test Accuracy Achieved %.2f. Saving model.\n\n" % (test_accuracy_max))
+            print("New Max Test Accuracy Achieved %.2f. Saving model.\n\n" % test_accuracy_max)
             torch.save(model, 'best_test_acc_model.pth')
         else:
-            print("Test accuracy did not increase from %.2f\n\n" % (test_accuracy_max))
+            print("Test accuracy did not increase from %.2f\n\n" % test_accuracy_max)
 
     return model, history
 
 
 def main(args):
+    """
+    Starts all the functions relevant for training process.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments.
+    """
     setup_logger()
     train_loader, validation_loader, classes = get_data_loaders(args.dataset_path, args.train_split, args.batch_size)
     model = initialize_resnet(classes)
