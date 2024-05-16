@@ -269,7 +269,7 @@ def main(args):
     """
     setup_logger()
     train_loader, validation_loader, classes = get_data_loaders(args.dataset_path, args.train_split, args.batch_size)
-    model = initialize_resnet(classes)
+    model = initialize_resnet()
     trained_model, history = train_model(model, args.initial_learning_rate, args.epochs, train_loader,
                                          validation_loader)
 
