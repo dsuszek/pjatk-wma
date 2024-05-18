@@ -115,10 +115,23 @@ class ImageWriter:
 
     @property
     def discarded_count(self):
+        """
+         This property retrieves the number of images that were discarded during processing.
+
+         Returns:
+             int: The count of discarded images.
+         """
         return self._discarded_count
 
     @property
     def image_count(self):
+        """
+        This property retrieves the number of images that were successfully processed
+        and saved to the output path.
+
+        Returns:
+            int: The count of successfully processed images.
+        """
         return self._image_count - 1
 
 
