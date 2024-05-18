@@ -19,6 +19,8 @@ import argparse
 import logging
 import os
 import ssl
+import csv
+import matplotlib.pyplot as plt
 import torch
 import torchvision
 from torch import nn, optim
@@ -36,6 +38,7 @@ class PokemonCNN(Module):
     """
      CNN model based on ResNet architecture for image classification of Pokemons.
      """
+
     def __init__(self, input_shape: torch.Size, classes: int):
         """
         Initializes the PokemonCNN instance.
@@ -44,7 +47,6 @@ class PokemonCNN(Module):
             input_shape (torch.Size): The input shape of the data.
             classes (int): The number of classes for classification.
         """
-        # Call the parent constructor
         super(PokemonCNN, self).__init__()
         channel_count = input_shape[0]
 
@@ -58,13 +60,14 @@ class PokemonCNN(Module):
         self.maxpool2 = MaxPool2d(kernel_size=2, stride=2)
 
         # Fully connected layers
+        # Connect every input neuron to every output neuron
         conv_out_size = self._calculate_conv_out(input_shape[0])
         self.fc1 = Linear(conv_out_size, 500)
         self.relu3 = ReLU()
         self.fc2 = Linear(500, classes)
         self.logSoftmax = LogSoftmax(dim=1)
 
-    def _calculate_conv_out(self, input_shape : int):
+    def _calculate_conv_out(self, input_shape: int):
         """
         Calculates the output size after convolutional layers.
 
@@ -245,22 +248,50 @@ def train_model(model, initial_learning_rate, epochs: int,
                 loss_t = loss_function(output_t, labels_t)
                 total_test_loss += loss_t.item()
 
-        test_loss = total_test_loss / len(validation_loader.dataset)
-        history["val_loss"].append(test_loss)
-        test_accuracy = 100 * correct_t / total_t
-        history["val_acc"].append(test_accuracy)
-        print('Epoch %d:\ntrain loss: %.4f' % (epoch, loss.item()))
-        print('test loss: %.4f' % (loss_t.item()))
-        print('train_accuracy %.2f' % train_accuracy)
-        print('test_accuracy %.2f' % test_accuracy)
-        if test_accuracy > test_accuracy_max:
-            test_accuracy_max = test_accuracy
-            print("New Max Test Accuracy Achieved %.2f. Saving model.\n\n" % test_accuracy_max)
-            torch.save(model, 'best_test_acc_model.pth')
+        val_loss = total_test_loss / len(validation_loader)
+        history["val_loss"].append(val_loss)
+        val_accuracy = 100 * correct_t / total_t
+        history["val_acc"].append(val_accuracy)
+        print('Epoch %d:\nTrain loss: %.4f' % (epoch, loss.item()))
+        print('Test loss: %.4f' % (loss_t.item()))
+        print('Train_accuracy %.2f' % train_accuracy)
+        print('Test_accuracy %.2f' % val_accuracy)
+        if val_accuracy > test_accuracy_max:
+            test_accuracy_max = val_accuracy
+            print("New max test accuracy achieved %.2f. Saving model.\n\n" % test_accuracy_max)
+            torch.save(model, 'best_cnn_pokemons.pth')
         else:
-            print("Test accuracy did not increase from %.2f\n\n" % test_accuracy_max)
+            print("Test accuracy did not increase from %.2f.\n\n" % test_accuracy_max)
 
     return model, history
+
+
+def visualisation_of_history(history):
+    """
+    Plots the training and validation accuracy over epochs.
+
+    Args:
+        history (dict): A dictionary containing training and validation metrics.
+            The dictionary should have the following keys:
+                - 'train_acc': A list of training accuracy values for each epoch.
+                - 'val_acc': A list of validation accuracy values for each epoch.
+
+    This function creates a plot with the training accuracy and validation accuracy
+    on the y-axis and the number of epochs on the x-axis. The plot includes a legend
+    to differentiate between training and validation accuracy. The training accuracy
+    is plotted as a solid line, and the validation accuracy is plotted as a dashed line.
+    """
+    plt.title('Accuracy')
+    plt.plot(history['train_acc'], '-', label='Train')
+    plt.plot(history['val_acc'], '--', label='Validation')
+    plt.legend()
+    plt.show()
+
+    plt.title('Loss')
+    plt.plot(history['train_loss'], '-', label='Train')
+    plt.plot(history['val_loss'], '--', label='Validation')
+    plt.legend()
+    plt.show()
 
 
 def main(args):
@@ -276,6 +307,21 @@ def main(args):
     model = initialize_resnet()
     trained_model, history = train_model(model, args.initial_learning_rate,
                                          args.epochs, train_loader, validation_loader)
+
+    with open('training_history.csv', 'w', newline='') as csvfile:
+        fieldnames = ['epoch', 'train_loss', 'train_acc', 'val_loss', 'val_acc']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+        for epoch in range(args.epochs):
+            writer.writerow({
+                'epoch': epoch + 1,
+                'train_loss': history['train_loss'][epoch],
+                'train_acc': history['train_acc'][epoch],
+                'val_loss': history['val_loss'][epoch],
+                'val_acc': history['val_acc'][epoch]
+            })
+    visualisation_of_history(history)
 
 
 if __name__ == '__main__':
