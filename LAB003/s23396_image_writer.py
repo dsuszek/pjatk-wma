@@ -7,6 +7,7 @@ In the final step, the images after all adjustments are saved into specified dir
 from __future__ import annotations
 import os  # Interactions with filesystem
 import argparse  # Parsing terminal command parameters
+import pandas as pd
 import PIL
 from PIL import Image  # Image processing
 
@@ -26,6 +27,7 @@ class ImageWriter:
     """
 
     _IMAGE_FILENAME_FORMAT: str = '{:03d}.'
+    _CATEGORY_STATS = {}
 
     def __init__(self, output_path: str, grey_scale: str, output_format: str, output_width: int,
                  output_height: int) -> None:
@@ -49,54 +51,75 @@ class ImageWriter:
         self._output_width = output_width
         self._output_height = output_height
         self._image_count = 1
+        self._discarded_count = 0
 
-        if self._output_format == 'jpg':
+        if self._output_format == 'jpg' or self._output_format == '.jpg':
             self._output_format = 'jpeg'
+        elif self._output_format == '.png':
+            self._output_format = 'png'
 
-        if output_format not in ('png', 'jpeg'):
+        if self._output_format not in ('png', 'jpeg'):
             print('Invalid image file extension. Only .png and .jpeg extensions are allowed.')
+            return
 
-    def _build_output_image_path(self, image: Image) -> str:
+    def _build_output_image_path(self, category: str) -> str:
         """
         Builds the full path for the next image to be written.
 
         Parameters:
-            image (PIL.Image): Path to the image is used to produce output folder structure.
+            category (str): Category (name) of the Pokemon.
 
         Returns:
             str: The full path for the next image.
         """
         return os.path.join(self._output_path,
-                            os.path.basename(os.path.dirname(image.filename)),
+                            category,
                             ImageWriter._IMAGE_FILENAME_FORMAT.format(
-                                self._image_count) + self._output_format)
+                                self._CATEGORY_STATS[category]['processed'])
+                            + self._output_format)
 
-    def write_image(self, image: Image) -> None:
+    def write_image(self, image: Image, category: str) -> bool:
         """
         Writes the provided image to the output path.
 
         Args:
             image (PIL.Image): The image to be written.
+            category (str): Category (name) of the Pokemon.
         """
 
+        if category not in self._CATEGORY_STATS:
+            self._CATEGORY_STATS[category] = {'processed': 0, 'discarded': 0}
+
         try:
-            image_path = self._build_output_image_path(image)
-            print('image path: ', image_path)
+            image_path = self._build_output_image_path(category)
             image = image.resize((self._output_width, self._output_height))
             image = image.convert(self._grey_scale)
             if self._output_format in ('png', 'jpeg'):
                 if not os.path.exists(os.path.dirname(image_path)):
-                    print(f'Path {os.path.dirname(image_path)} do not exists. Created path.')
+                    print(f'Path {os.path.dirname(image_path)} does not exist. Path created.')
                     os.mkdir(os.path.dirname(image_path))
                 image.save(image_path, self._output_format)
             else:
-                return
-            print(f'Saved image at {image_path}')
+                return False
             self._image_count += 1
+            self._CATEGORY_STATS[category]['processed'] += 1
+            return True
         except PIL.UnidentifiedImageError:
             print(f'Cannot identify image file at {image_path}')
+            self._CATEGORY_STATS[category]['discarded'] += 1
+            return False
         except AttributeError:
             print('Incorrect object type')
+            self._CATEGORY_STATS[category]['discarded'] += 1
+            return False
+
+    @property
+    def discarded_count(self):
+        return self._discarded_count
+
+    @property
+    def image_count(self):
+        return self._image_count - 1
 
 
 class ImageSource:
@@ -159,17 +182,21 @@ class ImageSource:
         Raises:
             StopIteration: If there are no more images to iterate over.
         """
+        if not self._source_list:
+            raise StopIteration
+        path = self._source_list.pop()
+
         try:
-            path = self._source_list.pop()
             img = Image.open(path)
-            return img
+            return path, img
         except PIL.UnidentifiedImageError:
             print(f'Cannot identify image file at {path}')
-            path = self._source_list.pop()
-            img = Image.open(path).convert('RGB')
-            return img
-        except IndexError:
-            raise StopIteration()
+            try:
+                path = self._source_list.pop()
+                img = Image.open(path).convert('RGB')
+                return path, img
+            except IndexError:
+                raise StopIteration()
 
 
 # ==================================================================================================
@@ -217,8 +244,16 @@ def main(args: argparse.Namespace) -> None:
         args.output_format,
         args.output_width,
         args.output_height)
-    for image in sources:
-        writer.write_image(image)
+
+    for path, image in sources:
+        category = os.path.basename(os.path.dirname(path))
+        writer.write_image(image, category)
+
+    data = [{'Category name': k, 'Number of processed images in category': v['processed'],
+             'Number of discarded images in category': v['discarded']} for k, v in ImageWriter._CATEGORY_STATS.items()]
+    df = pd.DataFrame(data)
+    df.to_csv('processing_analysis.csv', index=False)
+    print('Summary CSV saved.')
 
 
 if __name__ == '__main__':
